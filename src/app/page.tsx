@@ -30,9 +30,31 @@ export default function HomePage() {
    * 초기 로드
    * ========================= */
   React.useEffect(() => {
-    loadStateSmart().then(setState);
+    loadStateSmart().then((s) => {
+      setState(s);
+      // 로드 직후 바로 롤오버 체크
+      setTimeout(() => {
+        // state가 세팅된 다음 실행되게 한 박자
+        runRolloverCheck();
+      }, 0);
+    });
   }, []);
-
+  
+  React.useEffect(() => {
+    const onFocus = () => runRolloverCheck();
+    const onVis = () => {
+      if (document.visibilityState === "visible") runRolloverCheck();
+    };
+  
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+  
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+  
   /* =========================
    * 시간 갱신 (1분)
    * ========================= */
@@ -88,6 +110,26 @@ export default function HomePage() {
   /* =========================
    * 공통 commit helper
    * ========================= */
+  function runRolloverCheck() {
+    commit((prev) => {
+      const today = getTodayKey();
+      const week = getWeekKey();
+  
+      let next = prev;
+      let changed = false;
+  
+      if (prev.todayKey !== today) {
+        next = { ...next, todayKey: today, dailyDone: {} };
+        changed = true;
+      }
+      if (prev.weekKey !== week) {
+        next = { ...next, weekKey: week, weeklySpentMin: {} };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }
+  
   function commit(updater: (s: AppStateV1) => AppStateV1) {
     setState((prev) => {
       if (!prev) return prev;
