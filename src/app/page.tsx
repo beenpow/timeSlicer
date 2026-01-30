@@ -11,9 +11,10 @@ import {
   createTask,
   exportStateJson,
   importStateJson,
-  loadState,
-  saveState,
+  loadStateSmart,
+  saveStateSmart,
 } from "@/lib/storage";
+
 
 export default function HomePage() {
   const [state, setState] = React.useState<AppStateV1 | null>(null);
@@ -29,7 +30,7 @@ export default function HomePage() {
    * 초기 로드
    * ========================= */
   React.useEffect(() => {
-    setState(loadState());
+    loadStateSmart().then(setState);
   }, []);
 
   /* =========================
@@ -76,7 +77,7 @@ export default function HomePage() {
           changed = true;
         }
 
-        if (changed) saveState(next);
+        if (changed) saveStateSmart(next);
         return next;
       });
     }, DAY_ROLLOVER_CHECK_MS);
@@ -91,7 +92,7 @@ export default function HomePage() {
     setState((prev) => {
       if (!prev) return prev;
       const next = updater(prev);
-      saveState(next);
+      saveStateSmart(next);
       return next;
     });
   }

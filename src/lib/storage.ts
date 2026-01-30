@@ -3,6 +3,7 @@
 import { STORAGE_KEY, DEFAULT_WEEKLY_TARGET_MIN } from "./constants";
 import { getTodayKey, getWeekKey, clampMin0 } from "./time";
 import type { AppStateV1, Task, TaskKind } from "@/types/task";
+import { apiLoadState, apiSaveState } from "@/lib/storage_api";
 
 function safeJsonParse<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -108,4 +109,33 @@ function filterRecord<T>(rec: Record<string, T>, allowed: Set<string>): Record<s
     if (allowed.has(k)) out[k] = v;
   }
   return out;
+}
+
+// 서버에서 불러오고 성공하면 localStorage에도 반영
+export async function loadStateSmart(): Promise<AppStateV1> {
+  // 1) 로컬 먼저 (즉시 UI)
+  const local = loadState();
+
+  // 2) 서버 있으면 서버 시도
+  try {
+    const remote = await apiLoadState();
+    if (remote) {
+      saveState(remote);
+      return remote;
+    }
+  } catch {
+    // 서버 실패하면 로컬로 유지
+  }
+
+  return local;
+}
+
+// 로컬 저장은 즉시, 서버 저장은 best-effort
+export async function saveStateSmart(state: AppStateV1): Promise<void> {
+  saveState(state);
+  try {
+    await apiSaveState(state);
+  } catch {
+    // 네트워크/서버 문제면 조용히 무시 (UX 우선)
+  }
 }
