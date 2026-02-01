@@ -1,123 +1,70 @@
 "use client";
 
 import React from "react";
-import type { AppStateV1, TaskKind } from "@/types/task";
+import type { AppStateV1, Task } from "@/types/task";
 import { AddTaskRow } from "@/components/AddTaskRow";
 import { DailyList } from "@/components/DailyList";
 import { WeeklyList } from "@/components/WeeklyList";
-import { DAY_ROLLOVER_CHECK_MS } from "@/lib/constants";
-import { getTodayKey, getWeekKey, clampMin0 } from "@/lib/time";
-import {
-  createTask,
-  exportStateJson,
-  importStateJson,
-  loadStateSmart,
-  saveStateSmart,
-} from "@/lib/storage";
+import { loadStateSmart, saveStateSmart, loadState } from "@/lib/storage";
+import { getClientId } from "@/lib/client_id";
+import { getTodayKey, getWeekKey } from "@/lib/time";
+import { DEFAULT_WEEKLY_TARGET_MIN } from "@/lib/constants";
 
+function makeEmptyState(): AppStateV1 {
+  const todayKey = getTodayKey();
+  const weekKey = getWeekKey();
+  return {
+    version: 1,
+    tasks: [],
+    todayKey,
+    dailyDone: {},
+    weekKey,
+    weeklyTargetMin: {},
+    weeklySpentMin: {},
+  };
+}
 
-export default function HomePage() {
+export default function Page() {
   const [state, setState] = React.useState<AppStateV1 | null>(null);
-
-  // 현재 시각 (압박 색상 계산용)
-  const [nowMs, setNowMs] = React.useState(Date.now());
-
-  // Export / Import 모달
-  const [ioOpen, setIoOpen] = React.useState(false);
-  const [ioText, setIoText] = React.useState("");
-
-  /* =========================
-   * 초기 로드
-   * ========================= */
+  const clientId = React.useMemo(() => getClientId(), []);
+  const didHydrateRef = React.useRef(false);
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
   React.useEffect(() => {
-    loadStateSmart().then((s) => {
-      setState(s);
-      // 로드 직후 바로 롤오버 체크
-      setTimeout(() => {
-        // state가 세팅된 다음 실행되게 한 박자
-        runRolloverCheck();
-      }, 0);
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000); // 1분마다 갱신
+    return () => window.clearInterval(id);
+  }, []);
+  // --- 핵심: “로드 완료 전에는 절대 서버 PUT 금지”
+  function commit(updater: (s: AppStateV1) => AppStateV1) {
+    setState((prev) => {
+      if (!prev) return prev;
+
+      const next = updater(prev);
+
+      // ✅ 변경 없으면 저장하지 않음 (덮어쓰기/PUT 폭주 근본 원인 제거)
+      if (next === prev) return prev;
+
+      // ✅ 로컬 저장은 항상, 서버 저장은 hydrate 이후에만
+      if (didHydrateRef.current) {
+        saveStateSmart(next);
+      } else {
+        // hydrate 전: localStorage만(서버 덮어쓰기 방지)
+        // saveStateSmart는 서버까지 가므로 직접 local만 저장하는 게 이상적이지만
+        // 여기서는 hydrate 전에는 commit이 발생하지 않는 게 정상 흐름.
+        // 혹시 발생하면 서버 PUT을 막는 목적이라 그냥 state만 갱신.
+      }
+
+      return next;
     });
-  }, []);
-  
-  React.useEffect(() => {
-    const onFocus = () => runRolloverCheck();
-    const onVis = () => {
-      if (document.visibilityState === "visible") runRolloverCheck();
-    };
-  
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-  
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, []);
-  
-  /* =========================
-   * 시간 갱신 (1분)
-   * ========================= */
-  React.useEffect(() => {
-    const t = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 60_000);
-    return () => window.clearInterval(t);
-  }, []);
+  }
 
-  /* =========================
-   * Day / Week rollover 감지
-   * ========================= */
-  React.useEffect(() => {
-    if (!state) return;
-
-    const t = window.setInterval(() => {
-      const today = getTodayKey();
-      const week = getWeekKey();
-
-      setState((prev) => {
-        if (!prev) return prev;
-
-        let next = prev;
-        let changed = false;
-
-        if (prev.todayKey !== today) {
-          next = {
-            ...next,
-            todayKey: today,
-            dailyDone: {},
-          };
-          changed = true;
-        }
-
-        if (prev.weekKey !== week) {
-          next = {
-            ...next,
-            weekKey: week,
-            weeklySpentMin: {},
-          };
-          changed = true;
-        }
-
-        if (changed) saveStateSmart(next);
-        return next;
-      });
-    }, DAY_ROLLOVER_CHECK_MS);
-
-    return () => window.clearInterval(t);
-  }, [state]);
-
-  /* =========================
-   * 공통 commit helper
-   * ========================= */
   function runRolloverCheck() {
     commit((prev) => {
       const today = getTodayKey();
       const week = getWeekKey();
-  
+
       let next = prev;
       let changed = false;
-  
+
       if (prev.todayKey !== today) {
         next = { ...next, todayKey: today, dailyDone: {} };
         changed = true;
@@ -126,38 +73,85 @@ export default function HomePage() {
         next = { ...next, weekKey: week, weeklySpentMin: {} };
         changed = true;
       }
-      return changed ? next : prev;
-    });
-  }
-  
-  function commit(updater: (s: AppStateV1) => AppStateV1) {
-    setState((prev) => {
-      if (!prev) return prev;
-      const next = updater(prev);
-      saveStateSmart(next);
-      return next;
+
+      return changed ? next : prev; // ✅ 변경 없으면 prev 그대로 -> commit에서 저장 안 함
     });
   }
 
-  /* =========================
-   * Actions
-   * ========================= */
-  function onAdd(title: string, kind: TaskKind) {
-    commit((s) => {
-      const task = createTask(title, kind);
-      const next: AppStateV1 = {
-        ...s,
-        tasks: [task, ...s.tasks],
+  // 초기 로드: 서버 우선
+  React.useEffect(() => {
+    (async () => {
+      const local = loadState();
+      try {
+        const s = await loadStateSmart();
+        const finalState = (s ?? local ?? makeEmptyState()) as AppStateV1;
+        setState(finalState);
+
+        // hydrate 완료 선언: 이제부터 저장하면 서버로 감
+        didHydrateRef.current = true;
+
+        // 로드 직후 1회 롤오버 체크 (자정 지나고 처음 열었을 때 반영)
+        // 이때 changed가 false면 commit이 저장하지 않음
+        setTimeout(() => runRolloverCheck(), 0);
+      } catch {
+        const fallback = local ?? makeEmptyState();
+        setState(fallback);
+        didHydrateRef.current = true;
+        setTimeout(() => runRolloverCheck(), 0);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 탭이 다시 활성화될 때 롤오버 체크
+  React.useEffect(() => {
+    const onFocus = () => runRolloverCheck();
+    const onVis = () => {
+      if (document.visibilityState === "visible") runRolloverCheck();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]); // state 변동에도 안정적으로 동작
+
+  if (!state) {
+    return (
+      <main className="mx-auto max-w-3xl p-6">
+        <div className="text-sm opacity-70">Loading…</div>
+      </main>
+    );
+  }
+
+  const dailyTasks = state.tasks.filter((t) => t.kind === "daily");
+  const weeklyTasks = state.tasks.filter((t) => t.kind === "weekly");
+
+  // ---- Task ops ----
+  function addTask(title: string, kind: Task["kind"]) {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+
+    commit((prev) => {
+      const task: Task = {
+        id: crypto.randomUUID(),
+        title: trimmed,
+        kind,
+        createdAt: Date.now(),
       };
 
+      let next: AppStateV1 = { ...prev, tasks: [...prev.tasks, task] };
+
+      // weekly는 기본 타겟 부여
       if (kind === "weekly") {
-        next.weeklyTargetMin = {
-          ...next.weeklyTargetMin,
-          [task.id]: 600,
-        };
-        next.weeklySpentMin = {
-          ...next.weeklySpentMin,
-          [task.id]: 0,
+        next = {
+          ...next,
+          weeklyTargetMin: {
+            ...next.weeklyTargetMin,
+            [task.id]: DEFAULT_WEEKLY_TARGET_MIN,
+          },
         };
       }
 
@@ -165,204 +159,86 @@ export default function HomePage() {
     });
   }
 
-  function onDelete(taskId: string) {
-    commit((s) => {
-      const tasks = s.tasks.filter((t) => t.id !== taskId);
+  function deleteTask(taskId: string) {
+    commit((prev) => {
+      const tasks = prev.tasks.filter((t) => t.id !== taskId);
+      const { [taskId]: _a, ...weeklyTargetMin } = prev.weeklyTargetMin;
+      const { [taskId]: _b, ...weeklySpentMin } = prev.weeklySpentMin;
+      const { [taskId]: _c, ...dailyDone } = prev.dailyDone;
+      return { ...prev, tasks, weeklyTargetMin, weeklySpentMin, dailyDone };
+    });
+  }
 
-      const { [taskId]: _, ...dailyDone } = s.dailyDone;
-      const { [taskId]: __, ...weeklyTargetMin } = s.weeklyTargetMin;
-      const { [taskId]: ___, ...weeklySpentMin } = s.weeklySpentMin;
-
+  function toggleDailyDone(taskId: string) {
+    commit((prev) => {
+      const done = !!prev.dailyDone[taskId];
       return {
-        ...s,
-        tasks,
-        dailyDone,
-        weeklyTargetMin,
-        weeklySpentMin,
+        ...prev,
+        dailyDone: { ...prev.dailyDone, [taskId]: !done },
       };
     });
   }
 
-  function onToggleDailyDone(taskId: string) {
-    commit((s) => {
-      const cur = !!s.dailyDone[taskId];
+  function addWeeklyMinutes(taskId: string, deltaMin: number) {
+    commit((prev) => {
+      const cur = prev.weeklySpentMin[taskId] ?? 0;
+      const nextSpent = Math.max(0, cur + deltaMin);
       return {
-        ...s,
-        dailyDone: {
-          ...s.dailyDone,
-          [taskId]: !cur,
-        },
+        ...prev,
+        weeklySpentMin: { ...prev.weeklySpentMin, [taskId]: nextSpent },
       };
     });
   }
 
-  function onAddWeeklyMin(taskId: string, deltaMin: number) {
-    commit((s) => {
-      const cur = clampMin0(s.weeklySpentMin[taskId] ?? 0);
-      const nextVal = clampMin0(cur + deltaMin);
-      return {
-        ...s,
-        weeklySpentMin: {
-          ...s.weeklySpentMin,
-          [taskId]: nextVal,
-        },
-      };
-    });
+  function setWeeklyTarget(taskId: string, targetMin: number) {
+    commit((prev) => ({
+      ...prev,
+      weeklyTargetMin: { ...prev.weeklyTargetMin, [taskId]: Math.max(0, targetMin) },
+    }));
   }
-
-  function onSetWeeklyTargetMin(taskId: string, targetMin: number) {
-    commit((s) => {
-      return {
-        ...s,
-        weeklyTargetMin: {
-          ...s.weeklyTargetMin,
-          [taskId]: clampMin0(targetMin),
-        },
-      };
-    });
-  }
-
-  /* =========================
-   * Export / Import
-   * ========================= */
-  function openExport() {
-    if (!state) return;
-    setIoText(exportStateJson(state));
-    setIoOpen(true);
-  }
-
-  function doImport() {
-    try {
-      const next = importStateJson(ioText);
-      setState(next);
-      setIoOpen(false);
-    } catch (e: any) {
-      alert(e?.message ?? "Import failed");
-    }
-  }
-
-  /* =========================
-   * Render
-   * ========================= */
-  if (!state) {
-    return (
-      <div className="p-6 text-sm text-neutral-600">
-        Loading...
-      </div>
-    );
-  }
-
-  const dailyTasks = state.tasks.filter((t) => t.kind === "daily");
-  const weeklyTasks = state.tasks.filter((t) => t.kind === "weekly");
 
   return (
-    <main className="min-h-screen p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4">
-        {/* Header */}
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">TimeSlicer</h1>
-            <div className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
-              Daily reset: {state.todayKey} · Weekly reset: {state.weekKey}
-            </div>
-          </div>
+    <main className="mx-auto max-w-3xl p-6 space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">Time Slicer</h1>
+        <div className="text-xs opacity-60">
+          clientId: <span className="font-mono">{clientId}</span>
+        </div>
+        <div className="text-xs opacity-60">
+          todayKey: <span className="font-mono">{state.todayKey}</span> / weekKey:{" "}
+          <span className="font-mono">{state.weekKey}</span>
+        </div>
+      </header>
 
-          <div className="flex items-center gap-2">
-            <button
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-white/10"
-              onClick={openExport}
-            >
-              Export
-            </button>
-            <button
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-white/10"
-              onClick={() => {
-                setIoText("");
-                setIoOpen(true);
-              }}
-            >
-              Import
-            </button>
-          </div>
-        </header>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Add task</h2>
+        <AddTaskRow onAdd={addTask} />
+      </section>
 
-        {/* Add Task */}
-        <AddTaskRow onAdd={onAdd} />
+      <section className="space-y-3">
+      <h2 className="text-lg font-semibold">Daily</h2>
+      <DailyList
+        tasks={dailyTasks}
+        dailyDone={state.dailyDone}
+        onToggleDone={toggleDailyDone}
+        onDelete={deleteTask}
+        nowMs={nowMs}
+      />
+    </section>
 
-        {/* Lists */}
-        <section className="grid gap-6 md:grid-cols-2">
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">Daily</h2>
-            <DailyList
-              tasks={dailyTasks}
-              dailyDone={state.dailyDone}
-              onToggleDone={onToggleDailyDone}
-              onDelete={onDelete}
-              nowMs={nowMs}
-            />
-          </div>
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">Weekly</h2>
+      <WeeklyList
+        tasks={weeklyTasks}
+        weeklyTargetMin={state.weeklyTargetMin}
+        weeklySpentMin={state.weeklySpentMin}
+        onAddMin={addWeeklyMinutes}
+        onSetTargetMin={setWeeklyTarget}
+        onDelete={deleteTask}
+        nowMs={nowMs}
+      />
+    </section>
 
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">Weekly</h2>
-            <WeeklyList
-              tasks={weeklyTasks}
-              weeklyTargetMin={state.weeklyTargetMin}
-              weeklySpentMin={state.weeklySpentMin}
-              onAddMin={onAddWeeklyMin}
-              onSetTargetMin={onSetWeeklyTargetMin}
-              onDelete={onDelete}
-              nowMs={nowMs}
-            />
-          </div>
-        </section>
-
-        {/* Export / Import Modal */}
-        {ioOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-3xl rounded-xl border bg-white p-4 shadow-lg dark:bg-neutral-950">
-              <div className="flex items-center justify-between">
-                <div className="text-base font-semibold">
-                  Export / Import JSON
-                </div>
-                <button
-                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
-                  onClick={() => setIoOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-
-              <textarea
-                className="mt-3 h-72 w-full rounded-lg border p-3 font-mono text-xs bg-transparent"
-                value={ioText}
-                onChange={(e) => setIoText(e.target.value)}
-                placeholder="Exported JSON will appear here, or paste JSON to import."
-              />
-
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <button
-                  className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-white/10"
-                  onClick={() => {
-                    navigator.clipboard.writeText(ioText).catch(() => {});
-                  }}
-                >
-                  Copy
-                </button>
-                <button
-                  className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-white/10"
-                  onClick={doImport}
-                >
-                  Import (overwrite)
-                </button>
-              </div>
-
-              <div className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">
-                Import will overwrite current local data.
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </main>
   );
 }

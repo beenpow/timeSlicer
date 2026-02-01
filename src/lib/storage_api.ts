@@ -1,22 +1,29 @@
-"use client";
-
+// src/lib/storage_api.ts
 import type { AppStateV1 } from "@/types/task";
+import { getClientId } from "@/lib/client_id";
 
-const API_BASE = process.env.NEXT_PUBLIC_TIMESLICER_API_BASE;
-const TOKEN = process.env.NEXT_PUBLIC_TIMESLICER_TOKEN;
+const RAW_BASE = process.env.NEXT_PUBLIC_TIMESLICER_API_BASE ?? "";
+const TOKEN = process.env.NEXT_PUBLIC_TIMESLICER_TOKEN ?? "";
+
+// 안전하게 base 정규화: 끝 슬래시 제거
+const API_BASE = RAW_BASE.replace(/\/+$/, "");
 
 function authHeaders(): Record<string, string> {
-  const h: Record<string, string> = {};
-  if (TOKEN && TOKEN.trim().length > 0) {
-    h["Authorization"] = `Bearer ${TOKEN.trim()}`;
-  }
+  const h: Record<string, string> = {
+    "X-TimeSlicer-Client": getClientId(),
+  };
+  if (TOKEN) h["Authorization"] = `Bearer ${TOKEN}`;
   return h;
 }
 
 export async function apiLoadState(): Promise<AppStateV1 | null> {
-  if (!API_BASE) return null;
+  if (!API_BASE) {
+    console.warn("[TimeSlicer] API_BASE missing; skip apiLoadState");
+    return null;
+  }
 
-  const res = await fetch(`${API_BASE}/timeslicer/state`, {
+  const url = `${API_BASE}/timeslicer/state`;
+  const res = await fetch(url, {
     method: "GET",
     headers: {
       ...authHeaders(),
@@ -25,17 +32,25 @@ export async function apiLoadState(): Promise<AppStateV1 | null> {
   });
 
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`apiLoadState failed: ${res.status}`);
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`apiLoadState failed: ${res.status} ${text}`);
+  }
 
   const data = await res.json();
-  // 서버는 state를 string(JSON)로 반환하게 만들어둠
+  // 서버는 { key, state, updatedAt } 형태
   return data.state as AppStateV1;
 }
 
 export async function apiSaveState(state: AppStateV1): Promise<void> {
-  if (!API_BASE) return;
+  if (!API_BASE) {
+    console.warn("[TimeSlicer] API_BASE missing; skip apiSaveState");
+    return;
+  }
 
-  const res = await fetch(`${API_BASE}/timeslicer/state`, {
+  const url = `${API_BASE}/timeslicer/state`;
+  const res = await fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -44,5 +59,8 @@ export async function apiSaveState(state: AppStateV1): Promise<void> {
     body: JSON.stringify({ state }),
   });
 
-  if (!res.ok) throw new Error(`apiSaveState failed: ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`apiSaveState failed: ${res.status} ${text}`);
+  }
 }

@@ -1,141 +1,96 @@
-"use client";
-
-import { STORAGE_KEY, DEFAULT_WEEKLY_TARGET_MIN } from "./constants";
-import { getTodayKey, getWeekKey, clampMin0 } from "./time";
-import type { AppStateV1, Task, TaskKind } from "@/types/task";
+// src/lib/storage.ts
+import type { AppStateV1 } from "@/types/task";
+import { STORAGE_KEY } from "@/lib/constants";
 import { apiLoadState, apiSaveState } from "@/lib/storage_api";
+import { getClientId } from "@/lib/client_id";
 
-function safeJsonParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+export function loadState(): AppStateV1 | null {
+  if (typeof window === "undefined") return null;
   try {
-    return JSON.parse(raw) as T;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AppStateV1;
   } catch {
     return null;
   }
 }
 
-function blankState(): AppStateV1 {
-  return {
-    version: 1,
-    tasks: [],
-    todayKey: getTodayKey(),
-    dailyDone: {},
-    weekKey: getWeekKey(),
-    weeklyTargetMin: {},
-    weeklySpentMin: {},
-  };
-}
-
-export function loadState(): AppStateV1 {
-  if (typeof window === "undefined") return blankState();
-
-  const parsed = safeJsonParse<AppStateV1>(window.localStorage.getItem(STORAGE_KEY));
-  const base = parsed && parsed.version === 1 ? parsed : blankState();
-
-  // Rollover checks
-  const nowToday = getTodayKey();
-  const nowWeek = getWeekKey();
-
-  let next: AppStateV1 = { ...base };
-
-  if (next.todayKey !== nowToday) {
-    next.todayKey = nowToday;
-    next.dailyDone = {};
-  }
-
-  if (next.weekKey !== nowWeek) {
-    next.weekKey = nowWeek;
-    next.weeklySpentMin = {};
-    // weeklyTargetMin은 유지 (선호)
-  }
-
-  // Clean up: remove state for non-existing tasks
-  const ids = new Set(next.tasks.map((t) => t.id));
-  next.dailyDone = filterRecord(next.dailyDone, ids);
-  next.weeklyTargetMin = filterRecord(next.weeklyTargetMin, ids);
-  next.weeklySpentMin = filterRecord(next.weeklySpentMin, ids);
-
-  // Ensure weekly tasks have default target
-  for (const t of next.tasks) {
-    if (t.kind === "weekly") {
-      if (!Number.isFinite(next.weeklyTargetMin[t.id])) {
-        next.weeklyTargetMin[t.id] = DEFAULT_WEEKLY_TARGET_MIN;
-      } else {
-        next.weeklyTargetMin[t.id] = clampMin0(next.weeklyTargetMin[t.id]);
-      }
-      if (!Number.isFinite(next.weeklySpentMin[t.id])) {
-        next.weeklySpentMin[t.id] = 0;
-      } else {
-        next.weeklySpentMin[t.id] = clampMin0(next.weeklySpentMin[t.id]);
-      }
-    }
-  }
-
-  saveState(next);
-  return next;
-}
-
-export function saveState(state: AppStateV1) {
+export function saveState(state: AppStateV1): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-export function exportStateJson(state: AppStateV1): string {
-  return JSON.stringify(state, null, 2);
-}
-
-export function importStateJson(raw: string): AppStateV1 {
-  const parsed = safeJsonParse<AppStateV1>(raw);
-  if (!parsed || parsed.version !== 1) throw new Error("Invalid state JSON (version mismatch).");
-  // After import, re-run rollover + cleanup
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
   }
-  return loadState();
 }
 
-export function createTask(title: string, kind: TaskKind): Task {
-  return {
-    id: crypto.randomUUID(),
-    title: title.trim(),
-    kind,
-    createdAt: Date.now(),
-  };
-}
-
-function filterRecord<T>(rec: Record<string, T>, allowed: Set<string>): Record<string, T> {
-  const out: Record<string, T> = {};
-  for (const [k, v] of Object.entries(rec)) {
-    if (allowed.has(k)) out[k] = v;
-  }
-  return out;
-}
-
-// 서버에서 불러오고 성공하면 localStorage에도 반영
+/**
+ * 서버 우선 로드:
+ * 1) 서버에서 state를 가져오면 그걸 즉시 반환 + localStorage 동기화
+ * 2) 서버에 없으면(local 404) localStorage 사용
+ * 3) 서버 실패하면(local) localStorage 사용
+ */
 export async function loadStateSmart(): Promise<AppStateV1> {
-  // 1) 로컬 먼저 (즉시 UI)
+  const clientId = getClientId();
   const local = loadState();
 
-  // 2) 서버 있으면 서버 시도
   try {
     const remote = await apiLoadState();
     if (remote) {
+      console.log(`[TimeSlicer] load: server OK (${clientId}) @ ${nowIso()}`);
       saveState(remote);
       return remote;
     }
-  } catch {
-    // 서버 실패하면 로컬로 유지
+    console.log(`[TimeSlicer] load: server EMPTY (${clientId}) @ ${nowIso()}`);
+  } catch (e) {
+    console.error(`[TimeSlicer] load: server FAIL (${clientId})`, e);
   }
 
-  return local;
+  if (local) {
+    console.log(`[TimeSlicer] load: local OK (${clientId}) @ ${nowIso()}`);
+    return local;
+  }
+
+  // local도 없으면 최소 초기값은 page.tsx에서 생성하는 걸 권장하지만,
+  // 여기서는 null 대신 throw 하지 않고 page.tsx에서 기본값 만들게 두는 편이 안전.
+  console.log(`[TimeSlicer] load: local EMPTY (${clientId}) @ ${nowIso()}`);
+  // @ts-expect-error - page.tsx에서 fallback 생성할 것
+  return null;
 }
 
-// 로컬 저장은 즉시, 서버 저장은 best-effort
-export async function saveStateSmart(state: AppStateV1): Promise<void> {
-  saveState(state);
+// ---- 저장 디바운스 (PUT 폭주 방지) ----
+let pendingTimer: number | null = null;
+let pendingState: AppStateV1 | null = null;
+
+async function flushSave(): Promise<void> {
+  const s = pendingState;
+  pendingState = null;
+  if (!s) return;
+
+  const clientId = getClientId();
   try {
-    await apiSaveState(state);
-  } catch {
-    // 네트워크/서버 문제면 조용히 무시 (UX 우선)
+    await apiSaveState(s);
+    console.log(`[TimeSlicer] save: server OK (${clientId}) @ ${nowIso()}`);
+  } catch (e) {
+    console.error(`[TimeSlicer] save: server FAIL (${clientId})`, e);
   }
+}
+
+/**
+ * 로컬 저장은 즉시, 서버 저장은 디바운스해서 1번만 보내기
+ */
+export function saveStateSmart(state: AppStateV1): void {
+  saveState(state);
+
+  pendingState = state;
+  if (pendingTimer) window.clearTimeout(pendingTimer);
+
+  pendingTimer = window.setTimeout(() => {
+    pendingTimer = null;
+    void flushSave();
+  }, 800);
 }
