@@ -26,8 +26,8 @@ function weekEndPressure(we: number): number {
 }
 
 function colsByCountWeekly(n: number) {
-  if (n <= 3) return 1;
-  if (n <= 6) return 2;
+  if (n <= 15) return 1;
+  if (n <= 30) return 2;
   return 3;
 }
 
