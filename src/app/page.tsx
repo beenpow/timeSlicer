@@ -29,30 +29,21 @@ export default function Page() {
   const clientId = React.useMemo(() => getClientId(), []);
   const didHydrateRef = React.useRef(false);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
+
   React.useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 60_000); // 1분마다 갱신
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
-  // --- 핵심: “로드 완료 전에는 절대 서버 PUT 금지”
+
   function commit(updater: (s: AppStateV1) => AppStateV1) {
     setState((prev) => {
       if (!prev) return prev;
-
       const next = updater(prev);
-
-      // ✅ 변경 없으면 저장하지 않음 (덮어쓰기/PUT 폭주 근본 원인 제거)
       if (next === prev) return prev;
 
-      // ✅ 로컬 저장은 항상, 서버 저장은 hydrate 이후에만
       if (didHydrateRef.current) {
         saveStateSmart(next);
-      } else {
-        // hydrate 전: localStorage만(서버 덮어쓰기 방지)
-        // saveStateSmart는 서버까지 가므로 직접 local만 저장하는 게 이상적이지만
-        // 여기서는 hydrate 전에는 commit이 발생하지 않는 게 정상 흐름.
-        // 혹시 발생하면 서버 PUT을 막는 목적이라 그냥 state만 갱신.
       }
-
       return next;
     });
   }
@@ -73,12 +64,10 @@ export default function Page() {
         next = { ...next, weekKey: week, weeklySpentMin: {} };
         changed = true;
       }
-
-      return changed ? next : prev; // ✅ 변경 없으면 prev 그대로 -> commit에서 저장 안 함
+      return changed ? next : prev;
     });
   }
 
-  // 초기 로드: 서버 우선
   React.useEffect(() => {
     (async () => {
       const local = loadState();
@@ -87,11 +76,7 @@ export default function Page() {
         const finalState = (s ?? local ?? makeEmptyState()) as AppStateV1;
         setState(finalState);
 
-        // hydrate 완료 선언: 이제부터 저장하면 서버로 감
         didHydrateRef.current = true;
-
-        // 로드 직후 1회 롤오버 체크 (자정 지나고 처음 열었을 때 반영)
-        // 이때 changed가 false면 commit이 저장하지 않음
         setTimeout(() => runRolloverCheck(), 0);
       } catch {
         const fallback = local ?? makeEmptyState();
@@ -103,7 +88,6 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 탭이 다시 활성화될 때 롤오버 체크
   React.useEffect(() => {
     const onFocus = () => runRolloverCheck();
     const onVis = () => {
@@ -116,7 +100,7 @@ export default function Page() {
       document.removeEventListener("visibilitychange", onVis);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]); // state 변동에도 안정적으로 동작
+  }, [state]);
 
   if (!state) {
     return (
@@ -129,7 +113,6 @@ export default function Page() {
   const dailyTasks = state.tasks.filter((t) => t.kind === "daily");
   const weeklyTasks = state.tasks.filter((t) => t.kind === "weekly");
 
-  // ---- Task ops ----
   function addTask(title: string, kind: Task["kind"]) {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -144,7 +127,6 @@ export default function Page() {
 
       let next: AppStateV1 = { ...prev, tasks: [...prev.tasks, task] };
 
-      // weekly는 기본 타겟 부여
       if (kind === "weekly") {
         next = {
           ...next,
@@ -154,7 +136,6 @@ export default function Page() {
           },
         };
       }
-
       return next;
     });
   }
@@ -193,12 +174,15 @@ export default function Page() {
   function setWeeklyTarget(taskId: string, targetMin: number) {
     commit((prev) => ({
       ...prev,
-      weeklyTargetMin: { ...prev.weeklyTargetMin, [taskId]: Math.max(0, targetMin) },
+      weeklyTargetMin: {
+        ...prev.weeklyTargetMin,
+        [taskId]: Math.max(0, targetMin),
+      },
     }));
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl p-6 space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Time Slicer</h1>
         <div className="text-xs opacity-60">
@@ -215,30 +199,32 @@ export default function Page() {
         <AddTaskRow onAdd={addTask} />
       </section>
 
-      <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Daily</h2>
-      <DailyList
-        tasks={dailyTasks}
-        dailyDone={state.dailyDone}
-        onToggleDone={toggleDailyDone}
-        onDelete={deleteTask}
-        nowMs={nowMs}
-      />
-    </section>
+      {/* 모바일: 위/아래, 데스크탑: 좌/우 + Weekly 쪽을 조금 더 넓게 */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.25fr] items-start">
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Daily</h2>
+          <DailyList
+            tasks={dailyTasks}
+            dailyDone={state.dailyDone}
+            onToggleDone={toggleDailyDone}
+            onDelete={deleteTask}
+            nowMs={nowMs}
+          />
+        </div>
 
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Weekly</h2>
-      <WeeklyList
-        tasks={weeklyTasks}
-        weeklyTargetMin={state.weeklyTargetMin}
-        weeklySpentMin={state.weeklySpentMin}
-        onAddMin={addWeeklyMinutes}
-        onSetTargetMin={setWeeklyTarget}
-        onDelete={deleteTask}
-        nowMs={nowMs}
-      />
-    </section>
-
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Weekly</h2>
+          <WeeklyList
+            tasks={weeklyTasks}
+            weeklyTargetMin={state.weeklyTargetMin}
+            weeklySpentMin={state.weeklySpentMin}
+            onAddMin={addWeeklyMinutes}
+            onSetTargetMin={setWeeklyTarget}
+            onDelete={deleteTask}
+            nowMs={nowMs}
+          />
+        </div>
+      </section>
     </main>
   );
 }
