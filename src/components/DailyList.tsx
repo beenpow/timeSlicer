@@ -21,9 +21,9 @@ function dailyStressFromTime(dp: number): number {
 }
 
 function colsByCountDaily(n: number) {
-  if (n <= 5) return 1;
-  if (n <= 10) return 2;
-  if (n <= 15) return 3;
+  if (n <= 8) return 1;
+  if (n <= 16) return 2;
+  if (n <= 24) return 3;
   return 4;
 }
 
