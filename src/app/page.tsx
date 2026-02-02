@@ -5,7 +5,7 @@ import type { AppStateV1, Task } from "@/types/task";
 import { AddTaskRow } from "@/components/AddTaskRow";
 import { DailyList } from "@/components/DailyList";
 import { WeeklyList } from "@/components/WeeklyList";
-import { loadStateSmart, saveStateSmart, loadState } from "@/lib/storage";
+import { loadStateSmart, saveStateSmart } from "@/lib/storage";
 import { getClientId } from "@/lib/client_id";
 import { getTodayKey, getWeekKey } from "@/lib/time";
 import { DEFAULT_WEEKLY_TARGET_MIN } from "@/lib/constants";
@@ -35,14 +35,21 @@ export default function Page() {
     return () => window.clearInterval(id);
   }, []);
 
+  // --- 핵심: 초기 로드(loadStateSmart) 완료 전에는 절대 서버 PUT 금지
   function commit(updater: (s: AppStateV1) => AppStateV1) {
     setState((prev) => {
       if (!prev) return prev;
+
       const next = updater(prev);
+
+      // 변경 없으면 저장하지 않음
       if (next === prev) return prev;
 
+      // 서버 저장은 hydrate 이후에만
       if (didHydrateRef.current) {
         saveStateSmart(next);
+      } else {
+        // hydrate 전: 서버 덮어쓰기 방지. state만 갱신하고 저장은 하지 않음.
       }
       return next;
     });
@@ -68,26 +75,20 @@ export default function Page() {
     });
   }
 
+  // 초기 로드: 서버-only
   React.useEffect(() => {
     (async () => {
-      const local = loadState();
-      try {
-        const s = await loadStateSmart();
-        const finalState = (s ?? local ?? makeEmptyState()) as AppStateV1;
-        setState(finalState);
+      const s = await loadStateSmart();
+      const finalState = (s ?? makeEmptyState()) as AppStateV1;
+      setState(finalState);
 
-        didHydrateRef.current = true;
-        setTimeout(() => runRolloverCheck(), 0);
-      } catch {
-        const fallback = local ?? makeEmptyState();
-        setState(fallback);
-        didHydrateRef.current = true;
-        setTimeout(() => runRolloverCheck(), 0);
-      }
+      didHydrateRef.current = true;
+      setTimeout(() => runRolloverCheck(), 0);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 탭 활성화/포커스 시 롤오버 체크
   React.useEffect(() => {
     const onFocus = () => runRolloverCheck();
     const onVis = () => {
@@ -199,7 +200,6 @@ export default function Page() {
         <AddTaskRow onAdd={addTask} />
       </section>
 
-      {/* 모바일: 위/아래, 데스크탑: 좌/우 + Weekly 쪽을 조금 더 넓게 */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.25fr] items-start">
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Daily</h2>
