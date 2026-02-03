@@ -5,7 +5,7 @@ import type { AppStateV1, Task } from "@/types/task";
 import { AddTaskRow } from "@/components/AddTaskRow";
 import { DailyList } from "@/components/DailyList";
 import { WeeklyList } from "@/components/WeeklyList";
-import { loadStateSmart, saveStateSmart, loadState } from "@/lib/storage";
+import { loadStateSmart, saveStateSmart } from "@/lib/storage";
 import { getClientId } from "@/lib/client_id";
 import { getTodayKey, getWeekKey } from "@/lib/time";
 import { DEFAULT_WEEKLY_TARGET_MIN } from "@/lib/constants";
@@ -35,16 +35,21 @@ export default function Page() {
     return () => window.clearInterval(id);
   }, []);
 
+  // --- 핵심: 초기 로드(loadStateSmart) 완료 전에는 절대 서버 PUT 금지
   function commit(updater: (s: AppStateV1) => AppStateV1) {
     setState((prev) => {
       if (!prev) return prev;
 
       const next = updater(prev);
 
+      // 변경 없으면 저장하지 않음
       if (next === prev) return prev;
 
+      // 서버 저장은 hydrate 이후에만
       if (didHydrateRef.current) {
         saveStateSmart(next);
+      } else {
+        // hydrate 전: 서버 덮어쓰기 방지. state만 갱신하고 저장은 하지 않음.
       }
       return next;
     });
@@ -66,30 +71,24 @@ export default function Page() {
         next = { ...next, weekKey: week, weeklySpentMin: {} };
         changed = true;
       }
-
       return changed ? next : prev;
     });
   }
 
+  // 초기 로드: 서버-only
   React.useEffect(() => {
     (async () => {
-      const local = loadState();
-      try {
-        const s = await loadStateSmart();
-        const finalState = (s ?? local ?? makeEmptyState()) as AppStateV1;
-        setState(finalState);
-        didHydrateRef.current = true;
-        setTimeout(() => runRolloverCheck(), 0);
-      } catch {
-        const fallback = local ?? makeEmptyState();
-        setState(fallback);
-        didHydrateRef.current = true;
-        setTimeout(() => runRolloverCheck(), 0);
-      }
+      const s = await loadStateSmart();
+      const finalState = (s ?? makeEmptyState()) as AppStateV1;
+      setState(finalState);
+
+      didHydrateRef.current = true;
+      setTimeout(() => runRolloverCheck(), 0);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 탭 활성화/포커스 시 롤오버 체크
   React.useEffect(() => {
     const onFocus = () => runRolloverCheck();
     const onVis = () => {
@@ -138,7 +137,6 @@ export default function Page() {
           },
         };
       }
-
       return next;
     });
   }
@@ -177,30 +175,15 @@ export default function Page() {
   function setWeeklyTarget(taskId: string, targetMin: number) {
     commit((prev) => ({
       ...prev,
-      weeklyTargetMin: { ...prev.weeklyTargetMin, [taskId]: Math.max(0, targetMin) },
+      weeklyTargetMin: {
+        ...prev.weeklyTargetMin,
+        [taskId]: Math.max(0, targetMin),
+      },
     }));
   }
 
-  // ✅ NEW: rename task title
-  function renameTask(taskId: string, nextTitle: string) {
-    const trimmed = nextTitle.trim();
-    if (!trimmed) return;
-
-    commit((prev) => {
-      const idx = prev.tasks.findIndex((t) => t.id === taskId);
-      if (idx < 0) return prev;
-
-      const cur = prev.tasks[idx];
-      if (cur.title === trimmed) return prev;
-
-      const tasks = prev.tasks.slice();
-      tasks[idx] = { ...cur, title: trimmed };
-      return { ...prev, tasks };
-    });
-  }
-
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl p-6 space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Time Slicer</h1>
         <div className="text-xs opacity-60">
@@ -217,30 +200,30 @@ export default function Page() {
         <AddTaskRow onAdd={addTask} />
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Daily</h2>
-        <DailyList
-          tasks={dailyTasks}
-          dailyDone={state.dailyDone}
-          onToggleDone={toggleDailyDone}
-          onDelete={deleteTask}
-          onRenameTask={renameTask}
-          nowMs={nowMs}
-        />
-      </section>
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.25fr] items-start">
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Daily</h2>
+          <DailyList
+            tasks={dailyTasks}
+            dailyDone={state.dailyDone}
+            onToggleDone={toggleDailyDone}
+            onDelete={deleteTask}
+            nowMs={nowMs}
+          />
+        </div>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Weekly</h2>
-        <WeeklyList
-          tasks={weeklyTasks}
-          weeklyTargetMin={state.weeklyTargetMin}
-          weeklySpentMin={state.weeklySpentMin}
-          onAddMin={addWeeklyMinutes}
-          onSetTargetMin={setWeeklyTarget}
-          onDelete={deleteTask}
-          onRenameTask={renameTask}
-          nowMs={nowMs}
-        />
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Weekly</h2>
+          <WeeklyList
+            tasks={weeklyTasks}
+            weeklyTargetMin={state.weeklyTargetMin}
+            weeklySpentMin={state.weeklySpentMin}
+            onAddMin={addWeeklyMinutes}
+            onSetTargetMin={setWeeklyTarget}
+            onDelete={deleteTask}
+            nowMs={nowMs}
+          />
+        </div>
       </section>
     </main>
   );
