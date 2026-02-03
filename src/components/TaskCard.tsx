@@ -60,11 +60,11 @@ export default function TaskCard({
 
   return (
     <div
-      className="rounded-xl border p-3 transition min-w-0 bg-white/70 dark:bg-white/5"
+      className="rounded-xl border p-3 transition min-w-0 overflow-hidden bg-white/70 dark:bg-white/5"
       style={{ borderColor, backgroundColor: bgColor }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 overflow-hidden">
           <div className="text-sm font-semibold break-words">{title}</div>
           {subtitle && <div className="text-xs opacity-70">{subtitle}</div>}
         </div>

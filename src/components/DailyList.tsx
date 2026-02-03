@@ -9,17 +9,20 @@ function clamp01(x: number) {
   return Math.max(0, Math.min(1, x));
 }
 
+// 하루 진행률(0..1), 로컬 시간 기준
 function dayProgress(now = new Date()): number {
   const mins = now.getHours() * 60 + now.getMinutes();
   return clamp01(mins / (24 * 60));
 }
 
+// 오후로 갈수록 압박(0..1)
 function dailyStressFromTime(dp: number): number {
   const start = 0.5; // 12:00
   const t = (dp - start) / (1 - start);
   return clamp01(t);
 }
 
+// ✅ 너가 바꾼 기준 반영
 function colsByCountDaily(n: number) {
   if (n <= 8) return 1;
   if (n <= 16) return 2;
@@ -47,6 +50,7 @@ export function DailyList(props: {
   const dp = dayProgress(new Date(nowMs));
   const timeStress = dailyStressFromTime(dp);
 
+  // done은 뒤로 보내서 가독성 유지
   const sorted = [...tasks].sort((a, b) => {
     const ad = !!dailyDone[a.id];
     const bd = !!dailyDone[b.id];
@@ -64,10 +68,6 @@ export function DailyList(props: {
         const done = !!dailyDone[t.id];
         const stress = done ? 0 : timeStress;
 
-        // ✅ 오른쪽 폭 절약:
-        // - 토글 버튼은 Done/Undo 중 하나만 표시
-        // - Delete는 아이콘으로
-        // - Done 배지는 TaskCard 내부에 표시되지만 (right 영역 말고) subtitle로도 충분
         return (
           <TaskCard
             key={t.id}
@@ -78,6 +78,7 @@ export function DailyList(props: {
             stress={stress}
             right={
               <div className="flex items-center gap-2">
+                {/* ✅ Done/Undo는 1개 버튼으로만 */}
                 <button
                   className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
                   onClick={() => onToggleDone(t.id)}
@@ -85,6 +86,7 @@ export function DailyList(props: {
                   {done ? "Undo" : "Done"}
                 </button>
 
+                {/* ✅ 폭 줄이기 위해 X 아이콘 */}
                 <button
                   className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
                   onClick={() => onDelete(t.id)}
