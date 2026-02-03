@@ -93,7 +93,7 @@ export default function TaskCard({
 
   return (
     <div
-      className="rounded-xl border p-3 transition min-w-0 overflow-hidden bg-white/70 dark:bg-white/5"
+      className="rounded-xl border p-3 transition min-w-0 overflow-visible bg-white/70 dark:bg-white/5"
       style={{ borderColor, backgroundColor: bgColor }}
     >
       <div className="flex items-start justify-between gap-2">
