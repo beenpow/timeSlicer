@@ -89,7 +89,7 @@ export function WeeklyList(props: Props) {
   const we = weekElapsed(new Date(nowMs));
   const endPressure = weekEndPressure(we);
 
-  // 진행률 낮은 순으로 정렬
+  // 진행률 낮은 순
   const sorted = [...tasks].sort((a, b) => {
     const aSpent = clampMin0(weeklySpentMin[a.id] ?? 0);
     const bSpent = clampMin0(weeklySpentMin[b.id] ?? 0);
@@ -109,7 +109,7 @@ export function WeeklyList(props: Props) {
         const actual = target > 0 ? clamp01(spent / target) : 0;
         const done = actual >= 1;
 
-        // stress는 색감에만 반영 (멘트 없음)
+        // stress는 색감/톤만 (멘트 없음)
         const expected = we;
         const behind = clamp01(expected - actual);
         const stress = done ? 0 : clamp01(Math.max(endPressure * 0.8, behind * 1.2));
@@ -139,12 +139,78 @@ export function WeeklyList(props: Props) {
               </button>
             }
           >
-            <div className="min-w-0">
-              {/* Row 1: stats + dropdown (모바일에서도 안전) */}
+            {/* ✅ 데스크탑(sm+): 한 줄 유지 */}
+            <div className="hidden sm:flex items-center gap-2 min-w-0">
+              {/* stats 고정폭 → 정렬 */}
+              <div className="text-xs opacity-70 w-40 shrink-0 truncate">{statsText}</div>
+
+              {/* dropdown */}
+              <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
+                <button
+                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                  onClick={() => setOpenId(isOpen ? null : t.id)}
+                  aria-haspopup="menu"
+                  aria-expanded={isOpen}
+                  title="Add time"
+                >
+                  + <span className="opacity-70">▾</span>
+                </button>
+
+                {isOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow-lg dark:bg-neutral-900 z-20 overflow-hidden"
+                    role="menu"
+                  >
+                    {MENU_ITEMS.map((it, idx) => {
+                      const isLast = idx === MENU_ITEMS.length - 1;
+                      return (
+                        <button
+                          key={it.label}
+                          className={[
+                            "w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-white/10",
+                            isLast ? "" : "border-b border-neutral-100 dark:border-white/5",
+                          ].join(" ")}
+                          onClick={() => {
+                            onAddMin(t.id, it.delta);
+                            setOpenId(null);
+                          }}
+                          role="menuitem"
+                        >
+                          {it.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* progress */}
+              <div className="flex-1 h-2 overflow-hidden rounded-full border bg-white/40 dark:bg-white/10 min-w-0">
+                <div
+                  className="h-full bg-neutral-900/70 dark:bg-white/60"
+                  style={{ width: `${Math.round(actual * 100)}%` }}
+                />
+              </div>
+
+              {/* Target */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-neutral-700 dark:text-neutral-200">Target</span>
+                <input
+                  className="w-16 rounded-lg border px-2 py-1 text-xs bg-transparent"
+                  inputMode="numeric"
+                  value={target}
+                  onChange={(e) => onSetTargetMin(t.id, Number(e.target.value))}
+                  title="Target minutes"
+                />
+                <span className="text-xs text-neutral-700 dark:text-neutral-200">min</span>
+              </div>
+            </div>
+
+            {/* ✅ 모바일: 2줄로 내려 overflow 방지 */}
+            <div className="sm:hidden min-w-0">
+              {/* Row 1: stats + dropdown */}
               <div className="flex items-center gap-2 min-w-0">
-                <div className="text-xs opacity-70 min-w-0 flex-1 truncate">
-                  {statsText}
-                </div>
+                <div className="text-xs opacity-70 min-w-0 flex-1 truncate">{statsText}</div>
 
                 <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
                   <button
@@ -186,7 +252,7 @@ export function WeeklyList(props: Props) {
                 </div>
               </div>
 
-              {/* Row 2: progress + target */}
+              {/* Row 2: bar + target */}
               <div className="mt-2 flex items-center gap-2 min-w-0">
                 <div className="flex-1 h-2 overflow-hidden rounded-full border bg-white/40 dark:bg-white/10 min-w-0">
                   <div
@@ -196,22 +262,14 @@ export function WeeklyList(props: Props) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-neutral-700 dark:text-neutral-200 hidden sm:inline">
-                    Target
-                  </span>
-                  <span className="text-xs text-neutral-700 dark:text-neutral-200 sm:hidden">
-                    T
-                  </span>
+                  <span className="text-xs text-neutral-700 dark:text-neutral-200">T</span>
                   <input
-                    className="w-14 sm:w-16 rounded-lg border px-2 py-1 text-xs bg-transparent"
+                    className="w-14 rounded-lg border px-2 py-1 text-xs bg-transparent"
                     inputMode="numeric"
                     value={target}
                     onChange={(e) => onSetTargetMin(t.id, Number(e.target.value))}
                     title="Target minutes"
                   />
-                  <span className="text-xs text-neutral-700 dark:text-neutral-200 hidden sm:inline">
-                    min
-                  </span>
                 </div>
               </div>
             </div>
@@ -221,3 +279,5 @@ export function WeeklyList(props: Props) {
     </div>
   );
 }
+
+export default WeeklyList;
