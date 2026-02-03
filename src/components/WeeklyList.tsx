@@ -5,19 +5,20 @@ import type { Task } from "@/types/task";
 import { clampMin0, formatMinutes } from "@/lib/time";
 import TaskCard from "./TaskCard";
 
+/* ---------- utils ---------- */
+
 function clamp01(x: number) {
   if (!Number.isFinite(x)) return 0;
   return Math.max(0, Math.min(1, x));
 }
 
-// 주 진행률(0..1) 로컬 기준
+// 주 진행률 (0..1)
 function weekElapsed(now = new Date()): number {
   const jsDay = now.getDay(); // Sun=0..Sat=6
   const mon0 = (jsDay + 6) % 7; // Mon=0..Sun=6
   const minsToday = now.getHours() * 60 + now.getMinutes();
   const mins = mon0 * 24 * 60 + minsToday;
-  const total = 7 * 24 * 60;
-  return clamp01(mins / total);
+  return clamp01(mins / (7 * 24 * 60));
 }
 
 function weekEndPressure(we: number): number {
@@ -26,12 +27,22 @@ function weekEndPressure(we: number): number {
   return clamp01(t);
 }
 
-// ✅ 너가 바꾼 기준 반영
+// ✅ 컬럼 규칙 (너가 준 기준)
 function colsByCountWeekly(n: number) {
   if (n <= 15) return 1;
   if (n <= 30) return 2;
   return 3;
 }
+
+// ✅ status bar 색 결정
+function progressBarClass(actual: number, stress: number) {
+  if (actual >= 1) return "bg-emerald-500";
+  if (stress > 0.6) return "bg-rose-500";
+  if (stress > 0.3) return "bg-amber-400";
+  return "bg-sky-500";
+}
+
+/* ---------- types ---------- */
 
 type Props = {
   tasks: Task[];
@@ -50,14 +61,23 @@ const MENU_ITEMS: Array<{ label: string; delta: number }> = [
   { label: "-15m", delta: -15 },
 ];
 
+/* ---------- component ---------- */
+
 export function WeeklyList(props: Props) {
-  const { tasks, weeklyTargetMin, weeklySpentMin, onAddMin, onSetTargetMin, onDelete, nowMs } =
-    props;
+  const {
+    tasks,
+    weeklyTargetMin,
+    weeklySpentMin,
+    onAddMin,
+    onSetTargetMin,
+    onDelete,
+    nowMs,
+  } = props;
 
   const [openId, setOpenId] = React.useState<string | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
-  // 바깥 클릭으로 드롭다운 닫기
+  // outside click
   React.useEffect(() => {
     function onDown(e: MouseEvent) {
       if (!openId) return;
@@ -69,7 +89,7 @@ export function WeeklyList(props: Props) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [openId]);
 
-  // ESC로 닫기
+  // esc close
   React.useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpenId(null);
@@ -80,7 +100,7 @@ export function WeeklyList(props: Props) {
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-xl border p-4 text-sm text-neutral-600 dark:text-neutral-300 bg-white/70 dark:bg-white/5">
+      <div className="rounded-xl border p-4 text-sm text-neutral-600 bg-white/70">
         No weekly tasks yet.
       </div>
     );
@@ -101,7 +121,10 @@ export function WeeklyList(props: Props) {
   const cols = colsByCountWeekly(sorted.length);
 
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    <div
+      className="grid gap-3"
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+    >
       {sorted.map((t) => {
         const spent = clampMin0(weeklySpentMin[t.id] ?? 0);
         const target = clampMin0(weeklyTargetMin[t.id] ?? 0);
@@ -109,168 +132,145 @@ export function WeeklyList(props: Props) {
         const actual = target > 0 ? clamp01(spent / target) : 0;
         const done = actual >= 1;
 
-        // stress는 색감/톤만 (멘트 없음)
         const expected = we;
         const behind = clamp01(expected - actual);
-        const stress = done ? 0 : clamp01(Math.max(endPressure * 0.8, behind * 1.2));
+        const stress = done
+          ? 0
+          : clamp01(Math.max(endPressure * 0.8, behind * 1.2));
 
         const isOpen = openId === t.id;
-
-        const statsText = `${formatMinutes(spent)} / ${formatMinutes(target)} (${Math.round(
-          actual * 100
-        )}%)`;
+        const statsText = `${formatMinutes(spent)} / ${formatMinutes(
+          target
+        )} (${Math.round(actual * 100)}%)`;
 
         return (
           <TaskCard
             key={t.id}
             title={t.title}
-            subtitle={undefined}
             progress={actual}
             done={done}
             stress={stress}
             right={
               <button
-                className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100"
                 onClick={() => onDelete(t.id)}
-                title="Delete"
                 aria-label="Delete"
               >
                 ✕
               </button>
             }
           >
-            {/* ✅ 데스크탑(sm+): 한 줄 유지 */}
+            {/* ===== Desktop (sm+) ===== */}
             <div className="hidden sm:flex items-center gap-2 min-w-0">
-              {/* stats 고정폭 → 정렬 */}
-              <div className="text-xs opacity-70 w-40 shrink-0 truncate">{statsText}</div>
+              <div className="w-40 text-xs opacity-70 truncate">{statsText}</div>
 
               {/* dropdown */}
               <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
                 <button
-                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100"
                   onClick={() => setOpenId(isOpen ? null : t.id)}
-                  aria-haspopup="menu"
-                  aria-expanded={isOpen}
-                  title="Add time"
                 >
-                  + <span className="opacity-70">▾</span>
+                  + ▾
                 </button>
 
                 {isOpen && (
-                  <div
-                    className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow-lg dark:bg-neutral-900 z-20 overflow-hidden"
-                    role="menu"
-                  >
-                    {MENU_ITEMS.map((it, idx) => {
-                      const isLast = idx === MENU_ITEMS.length - 1;
-                      return (
-                        <button
-                          key={it.label}
-                          className={[
-                            "w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-white/10",
-                            isLast ? "" : "border-b border-neutral-100 dark:border-white/5",
-                          ].join(" ")}
-                          onClick={() => {
-                            onAddMin(t.id, it.delta);
-                            setOpenId(null);
-                          }}
-                          role="menuitem"
-                        >
-                          {it.label}
-                        </button>
-                      );
-                    })}
+                  <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow z-20 overflow-hidden">
+                    {MENU_ITEMS.map((it) => (
+                      <button
+                        key={it.label}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100"
+                        onClick={() => {
+                          onAddMin(t.id, it.delta);
+                          setOpenId(null);
+                        }}
+                      >
+                        {it.label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
 
               {/* progress */}
-              <div className="flex-1 h-2 overflow-hidden rounded-full border bg-white/40 dark:bg-white/10 min-w-0">
+              <div className="flex-1 h-2 rounded-full bg-neutral-200 overflow-hidden">
                 <div
-                  className="h-full bg-neutral-900/70 dark:bg-white/60"
+                  className={`h-full transition-all duration-300 ${progressBarClass(
+                    actual,
+                    stress
+                  )}`}
                   style={{ width: `${Math.round(actual * 100)}%` }}
                 />
               </div>
 
-              {/* Target */}
+              {/* target */}
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs text-neutral-700 dark:text-neutral-200">Target</span>
+                <span className="text-xs">Target</span>
                 <input
-                  className="w-16 rounded-lg border px-2 py-1 text-xs bg-transparent"
+                  className="w-16 rounded-lg border px-2 py-1 text-xs"
                   inputMode="numeric"
                   value={target}
-                  onChange={(e) => onSetTargetMin(t.id, Number(e.target.value))}
-                  title="Target minutes"
+                  onChange={(e) =>
+                    onSetTargetMin(t.id, Number(e.target.value))
+                  }
                 />
-                <span className="text-xs text-neutral-700 dark:text-neutral-200">min</span>
+                <span className="text-xs">min</span>
               </div>
             </div>
 
-            {/* ✅ 모바일: 2줄로 내려 overflow 방지 */}
+            {/* ===== Mobile ===== */}
             <div className="sm:hidden min-w-0">
-              {/* Row 1: stats + dropdown */}
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="text-xs opacity-70 min-w-0 flex-1 truncate">{statsText}</div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 text-xs opacity-70 truncate">
+                  {statsText}
+                </div>
 
                 <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
                   <button
-                    className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                    className="rounded-lg border px-2 py-1 text-xs"
                     onClick={() => setOpenId(isOpen ? null : t.id)}
-                    aria-haspopup="menu"
-                    aria-expanded={isOpen}
-                    title="Add time"
                   >
-                    + <span className="opacity-70">▾</span>
+                    + ▾
                   </button>
 
                   {isOpen && (
-                    <div
-                      className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow-lg dark:bg-neutral-900 z-20 overflow-hidden"
-                      role="menu"
-                    >
-                      {MENU_ITEMS.map((it, idx) => {
-                        const isLast = idx === MENU_ITEMS.length - 1;
-                        return (
-                          <button
-                            key={it.label}
-                            className={[
-                              "w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-white/10",
-                              isLast ? "" : "border-b border-neutral-100 dark:border-white/5",
-                            ].join(" ")}
-                            onClick={() => {
-                              onAddMin(t.id, it.delta);
-                              setOpenId(null);
-                            }}
-                            role="menuitem"
-                          >
-                            {it.label}
-                          </button>
-                        );
-                      })}
+                    <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow z-20 overflow-hidden">
+                      {MENU_ITEMS.map((it) => (
+                        <button
+                          key={it.label}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100"
+                          onClick={() => {
+                            onAddMin(t.id, it.delta);
+                            setOpenId(null);
+                          }}
+                        >
+                          {it.label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Row 2: bar + target */}
-              <div className="mt-2 flex items-center gap-2 min-w-0">
-                <div className="flex-1 h-2 overflow-hidden rounded-full border bg-white/40 dark:bg-white/10 min-w-0">
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex-1 h-2 rounded-full bg-neutral-200 overflow-hidden">
                   <div
-                    className="h-full bg-neutral-900/70 dark:bg-white/60"
+                    className={`h-full transition-all duration-300 ${progressBarClass(
+                      actual,
+                      stress
+                    )}`}
                     style={{ width: `${Math.round(actual * 100)}%` }}
                   />
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs text-neutral-700 dark:text-neutral-200">T</span>
-                  <input
-                    className="w-14 rounded-lg border px-2 py-1 text-xs bg-transparent"
-                    inputMode="numeric"
-                    value={target}
-                    onChange={(e) => onSetTargetMin(t.id, Number(e.target.value))}
-                    title="Target minutes"
-                  />
-                </div>
+                <span className="text-xs">T</span>
+                <input
+                  className="w-14 rounded-lg border px-2 py-1 text-xs"
+                  inputMode="numeric"
+                  value={target}
+                  onChange={(e) =>
+                    onSetTargetMin(t.id, Number(e.target.value))
+                  }
+                />
               </div>
             </div>
           </TaskCard>
