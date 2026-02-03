@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: 248 250 252; /* slate-50 */
+    --bg-card: 255 255 255;
+    --border: 226 232 240;
+    --text: 30 41 59;
+    --text-muted: 100 116 139;
+    --accent: 20 184 166; /* teal-500 */
+    --accent-hover: 13 148 136;
+    --done: 34 197 94;
+    --stress-high: 244 63 94;
+    --stress-mid: 251 191 36;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-[rgb(var(--bg-page))] text-[rgb(var(--text))];
+  }
+}
+
+@layer components {
+  .btn-ghost {
+    @apply rounded-lg px-2 py-1.5 text-xs font-medium transition-colors hover:bg-slate-100 active:bg-slate-200;
+  }
+
+  .btn-ghost-danger {
+    @apply rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-600 active:bg-red-100;
+  }
+
+  .input-soft {
+    @apply rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20;
+  }
+
+  .card-soft {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-shadow hover:shadow;
+  }
+}

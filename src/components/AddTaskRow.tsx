@@ -18,10 +18,10 @@ export function AddTaskRow(props: {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border p-3 bg-white/70 dark:bg-white/5">
-      <div className="flex gap-2">
+    <div className="card-soft flex flex-col gap-3 p-4">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
-          className="w-full rounded-lg border px-3 py-2 text-sm bg-transparent"
+          className="input-soft flex-1 min-w-0"
           placeholder="Add a task (e.g., Resume, Interview, Web Tech, ML)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -29,24 +29,26 @@ export function AddTaskRow(props: {
             if (e.key === "Enter") submit();
           }}
         />
-        <select
-          className="rounded-lg border px-2 py-2 text-sm bg-transparent"
-          value={kind}
-          onChange={(e) => setKind(e.target.value as TaskKind)}
-        >
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-        </select>
-        <button
-          className="rounded-lg border px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-white/10"
-          onClick={submit}
-        >
-          Add
-        </button>
+        <div className="flex gap-2">
+          <select
+            className="input-soft w-full sm:w-auto min-w-[6rem]"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as TaskKind)}
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <button
+            className="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-600 active:bg-teal-700 shrink-0"
+            onClick={submit}
+          >
+            Add
+          </button>
+        </div>
       </div>
-      <div className="text-xs text-neutral-600 dark:text-neutral-300">
+      <p className="text-xs text-slate-500">
         Daily resets every day. Weekly minutes reset when the week changes.
-      </div>
+      </p>
     </div>
   );
 }

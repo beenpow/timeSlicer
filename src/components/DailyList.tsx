@@ -42,8 +42,8 @@ export function DailyList(props: {
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-xl border p-4 text-sm text-neutral-600 dark:text-neutral-300 bg-white/70 dark:bg-white/5">
-        No daily tasks yet.
+      <div className="card-soft p-6 text-center text-sm text-slate-500">
+        No daily tasks yet. Add one above.
       </div>
     );
   }
@@ -80,18 +80,19 @@ export function DailyList(props: {
             editable={!!onUpdateTitle}
             onTitleChange={onUpdateTitle ? (v) => onUpdateTitle(t.id, v) : undefined}
             right={
-              <div className="flex items-center gap-2">
-                {/* ✅ Done/Undo는 1개 버튼으로만 */}
+              <div className="flex items-center gap-1">
                 <button
-                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                  className={`rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                    done
+                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-teal-500 text-white hover:bg-teal-600"
+                  }`}
                   onClick={() => onToggleDone(t.id)}
                 >
                   {done ? "Undo" : "Done"}
                 </button>
-
-                {/* ✅ 폭 줄이기 위해 X 아이콘 */}
                 <button
-                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100 dark:hover:bg-white/10"
+                  className="btn-ghost-danger"
                   onClick={() => onDelete(t.id)}
                   title="Delete"
                   aria-label="Delete"

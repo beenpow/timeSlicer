@@ -93,7 +93,7 @@ export default function TaskCard({
 
   return (
     <div
-      className="rounded-xl border p-3 transition min-w-0 overflow-visible bg-white/70 dark:bg-white/5"
+      className="card-soft min-w-0 overflow-visible p-4 transition-all duration-200"
       style={{ borderColor, backgroundColor: bgColor }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -102,7 +102,7 @@ export default function TaskCard({
             <input
               ref={inputRef}
               type="text"
-              className="w-full text-sm font-semibold bg-transparent border-b border-neutral-300 focus:outline-none focus:border-neutral-500"
+              className="w-full text-sm font-semibold bg-transparent border-b border-slate-300 py-0.5 outline-none focus:border-teal-500"
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
               onBlur={handleCommit}
@@ -112,22 +112,21 @@ export default function TaskCard({
           ) : editable && onTitleChange ? (
             <button
               type="button"
-              className="w-full text-left text-sm font-semibold break-words hover:underline focus:outline-none focus:underline"
+              className="w-full text-left text-sm font-semibold break-words text-slate-800 hover:text-teal-600 focus:outline-none focus:text-teal-600"
               onClick={() => setIsEditing(true)}
             >
               {title}
             </button>
           ) : (
-            <div className="text-sm font-semibold break-words">{title}</div>
+            <div className="text-sm font-semibold break-words text-slate-800">{title}</div>
           )}
-          {subtitle && <div className="text-xs opacity-70">{subtitle}</div>}
+          {subtitle && <div className="text-xs text-slate-500 mt-0.5">{subtitle}</div>}
         </div>
 
-        {/* 오른쪽은 "액션만" */}
-        <div className="shrink-0">{right}</div>
+        <div className="shrink-0 flex items-center gap-1">{right}</div>
       </div>
 
-      {children && <div className="mt-2">{children}</div>}
+      {children && <div className="mt-2 pt-2 border-t border-slate-100">{children}</div>}
     </div>
   );
 }

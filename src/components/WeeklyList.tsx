@@ -102,8 +102,8 @@ export function WeeklyList(props: Props) {
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-xl border p-4 text-sm text-neutral-600 bg-white/70">
-        No weekly tasks yet.
+      <div className="card-soft p-6 text-center text-sm text-slate-500">
+        No weekly tasks yet. Add one above.
       </div>
     );
   }
@@ -156,7 +156,7 @@ export function WeeklyList(props: Props) {
             onTitleChange={onUpdateTitle ? (v) => onUpdateTitle(t.id, v) : undefined}
             right={
               <button
-                className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100"
+                className="btn-ghost-danger"
                 onClick={() => onDelete(t.id)}
                 aria-label="Delete"
               >
@@ -166,23 +166,23 @@ export function WeeklyList(props: Props) {
           >
             {/* ===== Desktop (sm+) ===== */}
             <div className="hidden sm:flex items-center gap-2 min-w-0">
-              <div className="w-40 text-xs opacity-70 truncate">{statsText}</div>
+              <div className="w-40 text-xs text-slate-500 truncate">{statsText}</div>
 
               {/* dropdown */}
               <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
                 <button
-                  className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100"
+                  className="rounded-lg bg-teal-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-teal-600"
                   onClick={() => setOpenId(isOpen ? null : t.id)}
                 >
                   + ▾
                 </button>
 
                 {isOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow z-20 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-20 overflow-hidden">
                     {MENU_ITEMS.map((it) => (
                       <button
                         key={it.label}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100"
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-700 transition-colors"
                         onClick={() => {
                           onAddMin(t.id, it.delta);
                           setOpenId(null);
@@ -196,9 +196,9 @@ export function WeeklyList(props: Props) {
               </div>
 
               {/* progress */}
-              <div className="flex-1 h-2 rounded-full bg-neutral-200 overflow-hidden">
+              <div className="flex-1 h-2.5 rounded-full bg-slate-200 overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-300 ${progressBarClass(
+                  className={`h-full rounded-full transition-all duration-300 ${progressBarClass(
                     actual,
                     stress
                   )}`}
@@ -208,40 +208,40 @@ export function WeeklyList(props: Props) {
 
               {/* target */}
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs">Target</span>
+                <span className="text-xs text-slate-500">Target</span>
                 <input
-                  className="w-16 rounded-lg border px-2 py-1 text-xs"
+                  className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-teal-400 focus:ring-1 focus:ring-teal-400/30"
                   inputMode="numeric"
                   value={target}
                   onChange={(e) =>
                     onSetTargetMin(t.id, Number(e.target.value))
                   }
                 />
-                <span className="text-xs">min</span>
+                <span className="text-xs text-slate-500">min</span>
               </div>
             </div>
 
             {/* ===== Mobile ===== */}
             <div className="sm:hidden min-w-0">
               <div className="flex items-center gap-2">
-                <div className="flex-1 text-xs opacity-70 truncate">
+                <div className="flex-1 text-xs text-slate-500 truncate">
                   {statsText}
                 </div>
 
                 <div className="relative shrink-0" ref={isOpen ? menuRef : null}>
                   <button
-                    className="rounded-lg border px-2 py-1 text-xs"
+                    className="rounded-lg bg-teal-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-teal-600"
                     onClick={() => setOpenId(isOpen ? null : t.id)}
                   >
                     + ▾
                   </button>
 
                   {isOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border bg-white shadow z-20 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-2 w-28 rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-20 overflow-hidden">
                       {MENU_ITEMS.map((it) => (
                         <button
                           key={it.label}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100"
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-teal-50 hover:text-teal-700"
                           onClick={() => {
                             onAddMin(t.id, it.delta);
                             setOpenId(null);
@@ -256,9 +256,9 @@ export function WeeklyList(props: Props) {
               </div>
 
               <div className="mt-2 flex items-center gap-2">
-                <div className="flex-1 h-2 rounded-full bg-neutral-200 overflow-hidden">
+                <div className="flex-1 h-2.5 rounded-full bg-slate-200 overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-300 ${progressBarClass(
+                    className={`h-full rounded-full transition-all duration-300 ${progressBarClass(
                       actual,
                       stress
                     )}`}
@@ -266,9 +266,9 @@ export function WeeklyList(props: Props) {
                   />
                 </div>
 
-                <span className="text-xs">T</span>
+                <span className="text-xs text-slate-500">T</span>
                 <input
-                  className="w-14 rounded-lg border px-2 py-1 text-xs"
+                  className="w-14 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-teal-400"
                   inputMode="numeric"
                   value={target}
                   onChange={(e) =>

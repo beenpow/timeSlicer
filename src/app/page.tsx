@@ -105,8 +105,11 @@ export default function Page() {
 
   if (!state) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <div className="text-sm opacity-70">Loading…</div>
+      <main className="mx-auto max-w-6xl p-6 min-h-[40vh] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-teal-500" />
+          <span className="text-sm font-medium">Loading…</span>
+        </div>
       </main>
     );
   }
@@ -194,26 +197,39 @@ export default function Page() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Time Slicer</h1>
-        <div className="text-xs opacity-60">
-          clientId: <span className="font-mono">{clientId}</span>
+    <main className="mx-auto max-w-6xl p-6 sm:p-8 space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800">
+            Time Slicer
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Slice your day and week.
+          </p>
         </div>
-        <div className="text-xs opacity-60">
-          todayKey: <span className="font-mono">{state.todayKey}</span> / weekKey:{" "}
-          <span className="font-mono">{state.weekKey}</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">
+            {state.todayKey}
+          </span>
+          <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">
+            {state.weekKey}
+          </span>
+          <span className="hidden sm:inline font-mono text-slate-400">{clientId}</span>
         </div>
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Add task</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+          Add task
+        </h2>
         <AddTaskRow onAdd={addTask} />
       </section>
 
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.25fr] items-start">
+      <section className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.25fr] items-start">
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Daily</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            Daily
+          </h2>
           <DailyList
             tasks={dailyTasks}
             dailyDone={state.dailyDone}
@@ -225,7 +241,9 @@ export default function Page() {
         </div>
 
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Weekly</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+            Weekly
+          </h2>
           <WeeklyList
             tasks={weeklyTasks}
             weeklyTargetMin={state.weeklyTargetMin}
