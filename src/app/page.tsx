@@ -141,6 +141,17 @@ export default function Page() {
     });
   }
 
+  function updateTaskTitle(taskId: string, newTitle: string) {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    commit((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) =>
+        t.id === taskId ? { ...t, title: trimmed } : t
+      ),
+    }));
+  }
+
   function deleteTask(taskId: string) {
     commit((prev) => {
       const tasks = prev.tasks.filter((t) => t.id !== taskId);
@@ -208,6 +219,7 @@ export default function Page() {
             dailyDone={state.dailyDone}
             onToggleDone={toggleDailyDone}
             onDelete={deleteTask}
+            onUpdateTitle={updateTaskTitle}
             nowMs={nowMs}
           />
         </div>
@@ -221,6 +233,7 @@ export default function Page() {
             onAddMin={addWeeklyMinutes}
             onSetTargetMin={setWeeklyTarget}
             onDelete={deleteTask}
+            onUpdateTitle={updateTaskTitle}
             nowMs={nowMs}
           />
         </div>

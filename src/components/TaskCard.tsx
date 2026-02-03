@@ -17,6 +17,10 @@ type Props = {
 
   right?: React.ReactNode;
   children?: React.ReactNode;
+
+  /** 제목 클릭 시 인라인 편집 가능 */
+  editable?: boolean;
+  onTitleChange?: (newTitle: string) => void;
 };
 
 function clamp01(x: number) {
@@ -32,7 +36,36 @@ export default function TaskCard({
   stress = 0,
   right,
   children,
+  editable = false,
+  onTitleChange,
 }: Props) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editValue, setEditValue] = React.useState(title);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setEditValue(title);
+  }, [title]);
+
+  React.useEffect(() => {
+    if (isEditing) inputRef.current?.focus();
+  }, [isEditing]);
+
+  const handleCommit = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== title) onTitleChange?.(trimmed);
+    setIsEditing(false);
+    setEditValue(title);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleCommit();
+    if (e.key === "Escape") {
+      setEditValue(title);
+      setIsEditing(false);
+    }
+  };
+
   const p = clamp01(progress);
   const s = clamp01(stress);
 
@@ -64,8 +97,29 @@ export default function TaskCard({
       style={{ borderColor, backgroundColor: bgColor }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 overflow-hidden">
-          <div className="text-sm font-semibold break-words">{title}</div>
+        <div className="min-w-0 overflow-hidden flex-1">
+          {editable && onTitleChange && isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              className="w-full text-sm font-semibold bg-transparent border-b border-neutral-300 focus:outline-none focus:border-neutral-500"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleCommit}
+              onKeyDown={handleKeyDown}
+              aria-label="Edit task title"
+            />
+          ) : editable && onTitleChange ? (
+            <button
+              type="button"
+              className="w-full text-left text-sm font-semibold break-words hover:underline focus:outline-none focus:underline"
+              onClick={() => setIsEditing(true)}
+            >
+              {title}
+            </button>
+          ) : (
+            <div className="text-sm font-semibold break-words">{title}</div>
+          )}
           {subtitle && <div className="text-xs opacity-70">{subtitle}</div>}
         </div>
 

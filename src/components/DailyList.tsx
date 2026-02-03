@@ -35,9 +35,10 @@ export function DailyList(props: {
   dailyDone: Record<string, boolean>;
   onToggleDone: (taskId: string) => void;
   onDelete: (taskId: string) => void;
+  onUpdateTitle?: (taskId: string, title: string) => void;
   nowMs: number;
 }) {
-  const { tasks, dailyDone, onToggleDone, onDelete, nowMs } = props;
+  const { tasks, dailyDone, onToggleDone, onDelete, onUpdateTitle, nowMs } = props;
 
   if (tasks.length === 0) {
     return (
@@ -76,6 +77,8 @@ export function DailyList(props: {
             done={done}
             progress={done ? 1 : 0}
             stress={stress}
+            editable={!!onUpdateTitle}
+            onTitleChange={onUpdateTitle ? (v) => onUpdateTitle(t.id, v) : undefined}
             right={
               <div className="flex items-center gap-2">
                 {/* ✅ Done/Undo는 1개 버튼으로만 */}

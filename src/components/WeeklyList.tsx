@@ -51,6 +51,7 @@ type Props = {
   onAddMin: (taskId: string, deltaMin: number) => void;
   onSetTargetMin: (taskId: string, targetMin: number) => void;
   onDelete: (taskId: string) => void;
+  onUpdateTitle?: (taskId: string, title: string) => void;
   nowMs: number;
 };
 
@@ -71,6 +72,7 @@ export function WeeklyList(props: Props) {
     onAddMin,
     onSetTargetMin,
     onDelete,
+    onUpdateTitle,
     nowMs,
   } = props;
 
@@ -150,6 +152,8 @@ export function WeeklyList(props: Props) {
             progress={actual}
             done={done}
             stress={stress}
+            editable={!!onUpdateTitle}
+            onTitleChange={onUpdateTitle ? (v) => onUpdateTitle(t.id, v) : undefined}
             right={
               <button
                 className="rounded-lg border px-2 py-1 text-xs hover:bg-neutral-100"
