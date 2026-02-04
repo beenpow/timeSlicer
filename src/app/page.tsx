@@ -5,7 +5,7 @@ import type { AppStateV1, Task } from "@/types/task";
 import { AddTaskRow } from "@/components/AddTaskRow";
 import { DailyList } from "@/components/DailyList";
 import { WeeklyList } from "@/components/WeeklyList";
-import { loadStateSmart, saveStateSmart } from "@/lib/storage";
+import { loadStateSmart, saveStateSmart, isSaveInProgress } from "@/lib/storage";
 import { getClientId } from "@/lib/client_id";
 import { getTodayKey, getWeekKey } from "@/lib/time";
 import { DEFAULT_WEEKLY_TARGET_MIN } from "@/lib/constants";
@@ -78,6 +78,12 @@ export default function Page() {
   // 서버에서 상태를 다시 불러오기
   async function reloadStateFromServer() {
     if (!didHydrateRef.current) return; // 초기 로드 전에는 무시
+    
+    // 저장이 진행 중이면 reload를 스킵 (저장 중인 변경사항이 덮어씌워지는 것 방지)
+    if (isSaveInProgress()) {
+      console.log("[TimeSlicer] reloadStateFromServer: skip (save in progress)");
+      return;
+    }
 
     try {
       const s = await loadStateSmart();
@@ -136,6 +142,24 @@ export default function Page() {
     }, 30000); // 30초마다
 
     return () => window.clearInterval(syncInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 페이지를 떠나기 전에 저장이 진행 중이면 경고
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isSaveInProgress()) {
+        // 경고 메시지 표시
+        e.preventDefault();
+        e.returnValue = "변경사항이 저장 중입니다. 페이지를 떠나시겠습니까?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

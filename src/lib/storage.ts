@@ -39,23 +39,35 @@ export async function loadStateSmart(): Promise<AppStateV1 | null> {
   }
 }
 
-// ---- 저장 디바운스 (PUT 폭주 방지) ----
-let pendingTimer: number | null = null;
-let pendingState: AppStateV1 | null = null;
+// ---- 즉시 저장 (디바운스 없음) ----
+let isSaving = false; // 저장 진행 중 플래그
+let saveQueue: AppStateV1 | null = null; // 저장 대기 중인 상태 (최신 것만 유지)
 let retryCount = 0;
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 
-async function flushSave(): Promise<void> {
-  const s = pendingState;
-  if (!s) return;
+/**
+ * 저장이 진행 중인지 확인
+ */
+export function isSaveInProgress(): boolean {
+  return isSaving || saveQueue !== null;
+}
 
+async function saveStateInternal(state: AppStateV1): Promise<void> {
   const clientId = getClientId();
   try {
-    await apiSaveState(s);
+    await apiSaveState(state);
     console.log(`[TimeSlicer] save: server OK (${clientId}) @ ${nowIso()}`);
-    pendingState = null; // 성공 시에만 초기화
     retryCount = 0;
+    isSaving = false;
+    
+    // 큐에 더 최신 상태가 있으면 그것도 저장
+    if (saveQueue !== null) {
+      const next = saveQueue;
+      saveQueue = null;
+      isSaving = true;
+      await saveStateInternal(next);
+    }
   } catch (e) {
     console.error(`[TimeSlicer] save: server FAIL (${clientId})`, e);
     
@@ -64,27 +76,38 @@ async function flushSave(): Promise<void> {
       retryCount++;
       const delay = RETRY_DELAY_MS * retryCount; // 지수 백오프
       console.log(`[TimeSlicer] save: retry ${retryCount}/${MAX_RETRIES} in ${delay}ms (${clientId})`);
-      setTimeout(() => {
-        void flushSave();
+      setTimeout(async () => {
+        await saveStateInternal(state);
       }, delay);
     } else {
       console.error(`[TimeSlicer] save: max retries reached, giving up (${clientId})`);
-      pendingState = null; // 포기 시 초기화
       retryCount = 0;
+      isSaving = false;
+      
+      // 실패해도 큐에 있는 다음 상태는 시도
+      if (saveQueue !== null) {
+        const next = saveQueue;
+        saveQueue = null;
+        isSaving = true;
+        await saveStateInternal(next);
+      }
     }
   }
 }
 
 /**
  * Server-only save:
- * - Debounce PUT to server.
+ * - 즉시 저장 (디바운스 없음)
+ * - 저장 중이면 큐에 추가 (최신 상태만 유지)
  */
 export function saveStateSmart(state: AppStateV1): void {
-  pendingState = state;
-  if (pendingTimer) window.clearTimeout(pendingTimer);
+  if (isSaving) {
+    // 저장 중이면 큐에 추가 (이전 큐는 덮어쓰기 - 최신 것만 필요)
+    saveQueue = state;
+    return;
+  }
 
-  pendingTimer = window.setTimeout(() => {
-    pendingTimer = null;
-    void flushSave();
-  }, 800);
+  // 즉시 저장 시작
+  isSaving = true;
+  void saveStateInternal(state);
 }
