@@ -42,18 +42,36 @@ export async function loadStateSmart(): Promise<AppStateV1 | null> {
 // ---- 저장 디바운스 (PUT 폭주 방지) ----
 let pendingTimer: number | null = null;
 let pendingState: AppStateV1 | null = null;
+let retryCount = 0;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
 
 async function flushSave(): Promise<void> {
   const s = pendingState;
-  pendingState = null;
   if (!s) return;
 
   const clientId = getClientId();
   try {
     await apiSaveState(s);
     console.log(`[TimeSlicer] save: server OK (${clientId}) @ ${nowIso()}`);
+    pendingState = null; // 성공 시에만 초기화
+    retryCount = 0;
   } catch (e) {
     console.error(`[TimeSlicer] save: server FAIL (${clientId})`, e);
+    
+    // 재시도 로직
+    if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      const delay = RETRY_DELAY_MS * retryCount; // 지수 백오프
+      console.log(`[TimeSlicer] save: retry ${retryCount}/${MAX_RETRIES} in ${delay}ms (${clientId})`);
+      setTimeout(() => {
+        void flushSave();
+      }, delay);
+    } else {
+      console.error(`[TimeSlicer] save: max retries reached, giving up (${clientId})`);
+      pendingState = null; // 포기 시 초기화
+      retryCount = 0;
+    }
   }
 }
 

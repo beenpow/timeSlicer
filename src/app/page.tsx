@@ -75,6 +75,21 @@ export default function Page() {
     });
   }
 
+  // 서버에서 상태를 다시 불러오기
+  async function reloadStateFromServer() {
+    if (!didHydrateRef.current) return; // 초기 로드 전에는 무시
+
+    try {
+      const s = await loadStateSmart();
+      if (s) {
+        setState(s);
+        setTimeout(() => runRolloverCheck(), 0);
+      }
+    } catch (e) {
+      console.error("[TimeSlicer] reloadStateFromServer failed", e);
+    }
+  }
+
   // 초기 로드: 서버-only
   React.useEffect(() => {
     (async () => {
@@ -88,11 +103,17 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 탭 활성화/포커스 시 롤오버 체크
+  // 탭 활성화/포커스 시 서버에서 상태 다시 불러오기 + 롤오버 체크
   React.useEffect(() => {
-    const onFocus = () => runRolloverCheck();
+    const onFocus = () => {
+      runRolloverCheck();
+      reloadStateFromServer();
+    };
     const onVis = () => {
-      if (document.visibilityState === "visible") runRolloverCheck();
+      if (document.visibilityState === "visible") {
+        runRolloverCheck();
+        reloadStateFromServer();
+      }
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
@@ -102,6 +123,21 @@ export default function Page() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  // 주기적 동기화: 페이지가 열려있는 동안 30초마다 서버에서 최신 상태 불러오기
+  React.useEffect(() => {
+    if (!didHydrateRef.current) return;
+
+    const syncInterval = window.setInterval(() => {
+      // 페이지가 보이는 상태일 때만 동기화
+      if (document.visibilityState === "visible") {
+        reloadStateFromServer();
+      }
+    }, 30000); // 30초마다
+
+    return () => window.clearInterval(syncInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!state) {
     return (
