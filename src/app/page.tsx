@@ -24,10 +24,13 @@ function makeEmptyState(): AppStateV1 {
   };
 }
 
+const RELOAD_DEBOUNCE_MS = 2500; // commit 직후 이 시간 동안은 서버 reload로 덮어쓰지 않음
+
 export default function Page() {
   const [state, setState] = React.useState<AppStateV1 | null>(null);
   const clientId = React.useMemo(() => getClientId(), []);
   const didHydrateRef = React.useRef(false);
+  const lastCommitTimeRef = React.useRef(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
 
   React.useEffect(() => {
@@ -44,6 +47,8 @@ export default function Page() {
 
       // 변경 없으면 저장하지 않음
       if (next === prev) return prev;
+
+      lastCommitTimeRef.current = Date.now();
 
       // 서버 저장은 hydrate 이후에만
       if (didHydrateRef.current) {
@@ -87,15 +92,25 @@ export default function Page() {
 
     try {
       const s = await loadStateSmart();
-      // fetch 완료 시점에 로컬에서 저장이 진행 중이면 덮어쓰지 않음 (시간 추가 등이 사라지는 것 방지)
+      if (!s) return;
+      // fetch 완료 시점에 로컬에서 저장이 진행 중이면 덮어쓰지 않음
       if (isSaveInProgress()) {
         console.log("[TimeSlicer] reloadStateFromServer: skip after fetch (save in progress)");
         return;
       }
-      if (s) {
-        setState(s);
-        setTimeout(() => runRolloverCheck(), 0);
+      // 방금 commit(시간 추가 등)한 직후에는 서버 응답이 아직 반영 안 됐을 수 있으므로 덮어쓰지 않음
+      if (Date.now() - lastCommitTimeRef.current < RELOAD_DEBOUNCE_MS) {
+        console.log("[TimeSlicer] reloadStateFromServer: skip (recent commit)");
+        return;
       }
+      const normalized: AppStateV1 = {
+        ...s,
+        weeklySpentMin: s.weeklySpentMin ?? {},
+        weeklyTargetMin: s.weeklyTargetMin ?? {},
+        dailyDone: s.dailyDone ?? {},
+      };
+      setState(normalized);
+      setTimeout(() => runRolloverCheck(), 0);
     } catch (e) {
       console.error("[TimeSlicer] reloadStateFromServer failed", e);
     }
@@ -105,7 +120,13 @@ export default function Page() {
   React.useEffect(() => {
     (async () => {
       const s = await loadStateSmart();
-      const finalState = (s ?? makeEmptyState()) as AppStateV1;
+      const base = (s ?? makeEmptyState()) as AppStateV1;
+      const finalState: AppStateV1 = {
+        ...base,
+        weeklySpentMin: base.weeklySpentMin ?? {},
+        weeklyTargetMin: base.weeklyTargetMin ?? {},
+        dailyDone: base.dailyDone ?? {},
+      };
       setState(finalState);
 
       didHydrateRef.current = true;
