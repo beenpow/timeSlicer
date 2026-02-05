@@ -32,6 +32,7 @@ export default function Page() {
   const didHydrateRef = React.useRef(false);
   const lastCommitTimeRef = React.useRef(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
+  const [lastAddToast, setLastAddToast] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
@@ -135,41 +136,24 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 탭 활성화/포커스 시 서버에서 상태 다시 불러오기 + 롤오버 체크
-  React.useEffect(() => {
-    const onFocus = () => {
-      runRolloverCheck();
-      reloadStateFromServer();
-    };
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        runRolloverCheck();
-        reloadStateFromServer();
-      }
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  // 포커스/visibility 시 아무것도 하지 않음 — runRolloverCheck도 주(week) 바뀔 때 weeklySpentMin을 비워서
+  // +15m 직후 focus 이벤트만으로도 값이 사라질 수 있음. 필요 시 초기 로드·새로고침으로만 롤오버 적용.
+  // React.useEffect(() => {
+  //   const onFocus = () => runRolloverCheck();
+  //   const onVis = () => { if (document.visibilityState === "visible") runRolloverCheck(); };
+  //   window.addEventListener("focus", onFocus);
+  //   document.addEventListener("visibilitychange", onVis);
+  //   return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); };
+  // }, []);
 
-  // 주기적 동기화: 페이지가 열려있는 동안 30초마다 서버에서 최신 상태 불러오기
-  React.useEffect(() => {
-    if (!didHydrateRef.current) return;
-
-    const syncInterval = window.setInterval(() => {
-      // 페이지가 보이는 상태일 때만 동기화
-      if (document.visibilityState === "visible") {
-        reloadStateFromServer();
-      }
-    }, 30000); // 30초마다
-
-    return () => window.clearInterval(syncInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 주기적 서버 동기화 끔 — +15m 등 로컬 변경이 계속 덮어씌워져서 비활성화. 필요 시 수동 새로고침.
+  // React.useEffect(() => {
+  //   if (!didHydrateRef.current) return;
+  //   const syncInterval = window.setInterval(() => {
+  //     if (document.visibilityState === "visible") reloadStateFromServer();
+  //   }, 30000);
+  //   return () => window.clearInterval(syncInterval);
+  // }, []);
 
   // 페이지를 떠나기 전에 저장이 진행 중이면 경고
   React.useEffect(() => {
@@ -262,12 +246,14 @@ export default function Page() {
   }
 
   function addWeeklyMinutes(taskId: string, deltaMin: number) {
+    setLastAddToast(`+${deltaMin}m`);
+    setTimeout(() => setLastAddToast(null), 1500);
     commit((prev) => {
-      const cur = prev.weeklySpentMin[taskId] ?? 0;
+      const cur = prev.weeklySpentMin?.[taskId] ?? 0;
       const nextSpent = Math.max(0, cur + deltaMin);
       return {
         ...prev,
-        weeklySpentMin: { ...prev.weeklySpentMin, [taskId]: nextSpent },
+        weeklySpentMin: { ...(prev.weeklySpentMin ?? {}), [taskId]: nextSpent },
       };
     });
   }
@@ -294,6 +280,11 @@ export default function Page() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {lastAddToast && (
+            <span className="rounded-md bg-teal-500 px-2 py-1 font-medium text-white animate-pulse">
+              {lastAddToast} applied
+            </span>
+          )}
           <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">
             {state.todayKey}
           </span>
