@@ -87,6 +87,11 @@ export default function Page() {
 
     try {
       const s = await loadStateSmart();
+      // fetch 완료 시점에 로컬에서 저장이 진행 중이면 덮어쓰지 않음 (시간 추가 등이 사라지는 것 방지)
+      if (isSaveInProgress()) {
+        console.log("[TimeSlicer] reloadStateFromServer: skip after fetch (save in progress)");
+        return;
+      }
       if (s) {
         setState(s);
         setTimeout(() => runRolloverCheck(), 0);
