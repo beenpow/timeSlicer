@@ -122,11 +122,68 @@ export function WeeklyList(props: Props) {
 
   const cols = colsByCountWeekly(sorted.length);
 
+  const totalSpent = sorted.reduce(
+    (acc, t) => acc + clampMin0(weeklySpentMin[t.id] ?? 0),
+    0
+  );
+  const totalTarget = sorted.reduce(
+    (acc, t) => acc + Math.max(0, weeklyTargetMin[t.id] ?? 0),
+    0
+  );
+
   return (
-    <div
-      className="grid gap-3"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-    >
+    <div className="space-y-4">
+      {/* 이번 주 할당·진행 요약 막대 그래프 */}
+      <div className="card-soft p-4">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            This week
+          </span>
+          <span className="text-xs text-slate-500 tabular-nums">
+            {formatMinutes(totalSpent)} / {formatMinutes(totalTarget)}
+          </span>
+        </div>
+        <div className="space-y-2.5">
+          {sorted.map((t) => {
+            const spent = clampMin0(weeklySpentMin[t.id] ?? 0);
+            const target = Math.max(1, clampMin0(weeklyTargetMin[t.id] ?? 0));
+            const ratio = spent / target;
+            const done = ratio >= 1;
+            const fillPct = Math.min(100, ratio * 100);
+            const barColor = done
+              ? "bg-emerald-500"
+              : ratio > 0.6
+                ? "bg-amber-400"
+                : ratio > 0.3
+                  ? "bg-sky-500"
+                  : "bg-slate-300";
+            return (
+              <div key={t.id} className="flex items-center gap-3 min-w-0">
+                <span
+                  className="text-xs text-slate-600 truncate shrink-0 w-20 sm:w-24"
+                  title={t.title}
+                >
+                  {t.title}
+                </span>
+                <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden min-w-0">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                    style={{ width: `${fillPct}%`, minWidth: "2px" }}
+                  />
+                </div>
+                <span className="text-xs text-slate-500 tabular-nums shrink-0 w-14 sm:w-20 text-right">
+                  {formatMinutes(spent)} / {formatMinutes(target)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
       {sorted.map((t) => {
         const spent = clampMin0(weeklySpentMin[t.id] ?? 0);
         const target = clampMin0(weeklyTargetMin[t.id] ?? 0);
@@ -280,6 +337,7 @@ export function WeeklyList(props: Props) {
           </TaskCard>
         );
       })}
+      </div>
     </div>
   );
 }
