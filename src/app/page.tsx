@@ -269,7 +269,12 @@ export default function Page() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl p-6 sm:p-8 space-y-8">
+    <main className="mx-auto max-w-6xl p-6 sm:p-8 space-y-8 relative">
+      {lastAddToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white shadow-lg animate-pulse">
+          {lastAddToast} applied
+        </div>
+      )}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-800">
@@ -280,11 +285,6 @@ export default function Page() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          {lastAddToast && (
-            <span className="rounded-md bg-teal-500 px-2 py-1 font-medium text-white animate-pulse">
-              {lastAddToast} applied
-            </span>
-          )}
           <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-slate-600">
             {state.todayKey}
           </span>

@@ -79,16 +79,16 @@ export function WeeklyList(props: Props) {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
-  // outside click
+  // outside click — mousedown이면 +15m 클릭 전에 드롭다운이 닫혀서 click이 안 나감. click 사용.
   React.useEffect(() => {
-    function onDown(e: MouseEvent) {
+    function onClickOutside(e: MouseEvent) {
       if (!openId) return;
       const el = menuRef.current;
       if (!el) return;
       if (e.target instanceof Node && !el.contains(e.target)) setOpenId(null);
     }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("click", onClickOutside);
+    return () => document.removeEventListener("click", onClickOutside);
   }, [openId]);
 
   // esc close
