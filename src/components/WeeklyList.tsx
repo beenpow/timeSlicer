@@ -130,10 +130,14 @@ export function WeeklyList(props: Props) {
     (acc, t) => acc + Math.max(0, weeklyTargetMin[t.id] ?? 0),
     0
   );
+  const maxTarget = Math.max(
+    ...sorted.map((t) => Math.max(1, clampMin0(weeklyTargetMin[t.id] ?? 0))),
+    1
+  );
 
   return (
     <div className="space-y-4">
-      {/* 이번 주 할당·진행 요약 막대 그래프 */}
+      {/* 이번 주 할당·진행 요약 — 막대 길이 = 목표 시간(절대), 채움 = 진행률 */}
       <div className="card-soft p-4">
         <div className="flex items-center justify-between gap-2 mb-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -149,6 +153,7 @@ export function WeeklyList(props: Props) {
             const target = Math.max(1, clampMin0(weeklyTargetMin[t.id] ?? 0));
             const ratio = spent / target;
             const done = ratio >= 1;
+            const barWidthPct = (target / maxTarget) * 100;
             const fillPct = Math.min(100, ratio * 100);
             const barColor = done
               ? "bg-emerald-500"
@@ -165,11 +170,19 @@ export function WeeklyList(props: Props) {
                 >
                   {t.title}
                 </span>
-                <div className="flex-1 h-2.5 rounded-full bg-slate-100 overflow-hidden min-w-0">
+                <div className="flex-1 min-w-0 flex items-center">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                    style={{ width: `${fillPct}%`, minWidth: "2px" }}
-                  />
+                    className="h-2.5 rounded-full bg-slate-100 overflow-hidden flex shrink-0"
+                    style={{
+                      width: `${barWidthPct}%`,
+                      minWidth: "4px",
+                    }}
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                      style={{ width: `${fillPct}%`, minWidth: "2px" }}
+                    />
+                  </div>
                 </div>
                 <span className="text-xs text-slate-500 tabular-nums shrink-0 w-14 sm:w-20 text-right">
                   {formatMinutes(spent)} / {formatMinutes(target)}
